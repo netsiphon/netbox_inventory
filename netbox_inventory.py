@@ -23,7 +23,7 @@ def main(args):
             URL = args.URL
         else:
             print(
-                "ERROR: NETBOX_URL or -u option both not set. Provide one "
+                "ERROR: neither NETBOX_URL or -u option are set. Provide one "
                 "to continue..."
             )
             exit(-1)
@@ -36,7 +36,7 @@ def main(args):
             TOKEN = args.TOKEN
         else:
             print(
-                "ERROR: NETBOX_TOKEN or -t option both not set. Provide one "
+                "ERROR: neither NETBOX_TOKEN or -t option are set. Provide one "
                 "to continue..."
             )
             exit(-1)
