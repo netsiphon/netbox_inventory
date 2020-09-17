@@ -1,7 +1,6 @@
 # netbox_inventory
-![netbox](./images/netbox_logo.svg)
 An ansible-inventory compatible script that uses the Rest API for netbox
-directly without pynetbox.  The script can be used with Ansible or AWX and 
+directly without pynetbox.  The script can be used with Ansible or AWX and
 accepts environment variables or command line variables.
 
 Compatibility checked against:  
@@ -28,7 +27,7 @@ optional arguments:
 ```
 
 Environment variables supported (used to pass variables to AWX):
-![awx](images/awx_logo.svg)
+
 `NETBOX_URL`: URL for the Netbox site to be queried  
 `NETBOX_TOKEN`: Access Token to be used to access the Netbox site  
 `NETBOX_FILTER_TAGS`: List of tags(csv) to be used to return matching objects  
