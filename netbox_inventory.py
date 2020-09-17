@@ -27,7 +27,7 @@ def main(args):
                 "to continue..."
             )
             exit(-1)
-
+            
     # Netbox API Token
     if os.environ.get("NETBOX_TOKEN") is not None:
         TOKEN = os.environ.get("NETBOX_TOKEN")
@@ -50,6 +50,7 @@ def main(args):
             FILTER_TAGS = args.TAGS.split(",")
         else:
             FILTER_TAGS = []
+    # Example: ["platform.name=Juniper"]
     if os.environ.get("NETBOX_FILTER_CUSTOM") is not None:
         FILTER_CUSTOM = os.environ.get("NETBOX_FILTER_CUSTOM").split(",")
     else:
@@ -118,7 +119,7 @@ def main(args):
     inventory = {}
     hostvars = {}
 
-    # Get data from Netbox
+    # Get data from netbox
     while api_url:
         try:
             api_output = requests.get(api_url, headers=headers, verify=False)
@@ -169,7 +170,6 @@ def main(args):
                 + api_url
             )
             exit(-1)
-
         if isinstance(api_output_data, dict) and "results" in api_output_data:
             hosts_list += api_output_data["results"]
             api_url = api_output_data["next"]
@@ -177,8 +177,9 @@ def main(args):
     # Filter hosts for AWX
     for i in hosts_list:
         if FILTER_TAGS:
-            if any(item in FILTER_TAGS for item in i["tags"]):
-                devices.append(i)
+            for item in i["tags"]:
+                if item.get("name") in FILTER_TAGS:
+                    devices.append(i)
         else:
             devices.append(i)
 
@@ -204,18 +205,18 @@ def main(args):
                     "hosts"
                 ].append(host)
             for t in i["tags"]:
-                tags.setdefault(t, {"hosts": []})["hosts"].append(host)
-            if i["config_context"]:
-                hostvars.setdefault("_meta", {"hostvars": {}})["hostvars"][
+                tags.setdefault(t.get("name"), {"hosts": []})["hosts"].append(
                     host
-                ] = {}
+                )
+
+            hostvars.setdefault("_meta", {"hostvars": {}})["hostvars"][
+                host
+            ] = {}
+            if i["config_context"]:
                 hostvars["_meta"]["hostvars"][host]["config_context"] = i[
                     "config_context"
                 ]
             if i["primary_ip"]:
-                hostvars.setdefault("_meta", {"hostvars": {}})["hostvars"][
-                    host
-                ] = {}
                 hostvars["_meta"]["hostvars"][host]["ansible_host"] = i[
                     "primary_ip"
                 ]["address"].split("/")[0]
