@@ -15,72 +15,11 @@ import argparse
 def main(args):
     urllib3.disable_warnings()
 
-    # Netbox URL
-    if os.environ.get("NETBOX_URL") is not None:
-        URL = os.environ.get("NETBOX_URL")
-    else:
-        if args.URL is not None:
-            URL = args.URL
-        else:
-            print(
-                "ERROR: neither NETBOX_URL or -u option are set. Provide one "
-                "to continue..."
-            )
-            exit(-1)
-            
-    # Netbox API Token
-    if os.environ.get("NETBOX_TOKEN") is not None:
-        TOKEN = os.environ.get("NETBOX_TOKEN")
-    else:
-        if args.TOKEN is not None:
-            TOKEN = args.TOKEN
-        else:
-            print(
-                "ERROR: neither NETBOX_TOKEN or -t option are set. Provide one "
-                "to continue..."
-            )
-            exit(-1)
-
-    # AWX Filter Tags
-    # Example: ["switch", "manager"]
-    if os.environ.get("NETBOX_FILTER_TAGS") is not None:
-        FILTER_TAGS = os.environ.get("NETBOX_FILTER_TAGS").split(",")
-    else:
-        if args.TAGS is not None:
-            FILTER_TAGS = args.TAGS.split(",")
-        else:
-            FILTER_TAGS = []
-    # Example: ["platform.name=Juniper"]
-    if os.environ.get("NETBOX_FILTER_CUSTOM") is not None:
-        FILTER_CUSTOM = os.environ.get("NETBOX_FILTER_CUSTOM").split(",")
-    else:
-        if args.CUSTOM is not None:
-            FILTER_CUSTOM = args.CUSTOM.split(",")
-        else:
-            FILTER_CUSTOM = []
-
-    # Device
-    if os.environ.get("NETBOX_DEVICE") is not None:
-        NETBOX_DEVICE = bool(os.environ.get("NETBOX_DEVICE"))
-    else:
-        if args.b_device is not None:
-            NETBOX_DEVICE = bool(args.b_device)
-        else:
-            NETBOX_DEVICE = True
-
-    # Device
-    if os.environ.get("NETBOX_VIRTUAL") is not None:
-        NETBOX_VIRTUAL = bool(os.environ.get("NETBOX_VIRTUAL"))
-    else:
-        if args.b_virtual is not None:
-            NETBOX_VIRTUAL = bool(args.b_virtual)
-        else:
-            NETBOX_VIRTUAL = True
-
     headers = {
         "Accept": "application/json ; indent=4",
         "Authorization": "Token %s" % (TOKEN),
     }
+
     url_tags = ""
     if FILTER_TAGS:
         c_tags = len(FILTER_TAGS)
@@ -109,11 +48,13 @@ def main(args):
     if NETBOX_VIRTUAL:
         api_url = URL + "/api/virtualization/virtual-machines/" + url_tags
 
+    processed_hosts = {}
     hosts_list = []
     devices = []
     sites = {}
     racks = {}
     platforms = {}
+    clusters = {}
     tenants = {}
     tags = {}
     inventory = {}
@@ -127,7 +68,8 @@ def main(args):
         except Exception as error:
             print("ERROR: NETBOX API=>", error)
             exit(-1)
-        if "error" in api_output_data and api_output_data["error"] != "":
+
+        if api_output_data.get("error"):
             print("ERROR: " + api_output_data["error"])
             exit(-1)
         if api_output.status_code == 400:
@@ -177,6 +119,8 @@ def main(args):
     # Filter hosts for AWX
     for i in hosts_list:
         if FILTER_TAGS:
+            if i.get("tags") is None:
+                continue
             for item in i["tags"]:
                 if item.get("name") in FILTER_TAGS:
                     devices.append(i)
@@ -185,48 +129,64 @@ def main(args):
 
     # Populate inventory
     for i in devices:
-        if i["name"]:
-            host = i["name"]
-            if i["site"]:
-                sites.setdefault(i["site"]["slug"], {"hosts": []})[
-                    "hosts"
-                ].append(host)
-            if NETBOX_DEVICE:
-                if i["rack"]:
-                    racks.setdefault(i["rack"]["name"], {"hosts": []})[
-                        "hosts"
-                    ].append(host)
-            if i["platform"]:
-                platforms.setdefault(i["platform"]["slug"], {"hosts": []})[
-                    "hosts"
-                ].append(host)
-            if i["tenant"]:
-                tenants.setdefault(i["tenant"]["slug"], {"hosts": []})[
-                    "hosts"
-                ].append(host)
-            for t in i["tags"]:
-                tags.setdefault(t.get("name"), {"hosts": []})["hosts"].append(
+        host = i.get("name")
+        if host and host not in processed_hosts:
+            site = i.get("site")
+            if site:
+                sites.setdefault(site["slug"], {"hosts": []})["hosts"].append(
                     host
                 )
+            if NETBOX_DEVICE:
+                rack = i.get("rack")
+                if rack:
+                    racks.setdefault(rack["name"], {"hosts": []})[
+                        "hosts"
+                    ].append(host)
+            if NETBOX_VIRTUAL:
+                cluster = i.get("cluster")
+                if cluster:
+                    clusters.setdefault(cluster["name"], {"hosts": []})[
+                        "hosts"
+                    ].append(host)
+            platform = i.get("platform")
+            if platform:
+                platforms.setdefault(platform["slug"], {"hosts": []})[
+                    "hosts"
+                ].append(host)
+            tenant = i.get("tenant")
+            if tenant:
+                tenants.setdefault(tenant["slug"], {"hosts": []})[
+                    "hosts"
+                ].append(host)
+            tags_result = i.get("tags")
+            if tags_result:
+                for t in tags_result:
+                    tags.setdefault(t.get("name"), {"hosts": []})[
+                        "hosts"
+                    ].append(host)
 
             hostvars.setdefault("_meta", {"hostvars": {}})["hostvars"][
                 host
             ] = {}
-            if i["config_context"]:
-                hostvars["_meta"]["hostvars"][host]["config_context"] = i[
+            config_context = i.get("config_context")
+            if config_context:
+                hostvars["_meta"]["hostvars"][host][
                     "config_context"
-                ]
-            if i["primary_ip"]:
-                hostvars["_meta"]["hostvars"][host]["ansible_host"] = i[
-                    "primary_ip"
-                ]["address"].split("/")[0]
-                hostvars["_meta"]["hostvars"][host]["primary_ip"] = i[
-                    "primary_ip"
-                ]["address"].split("/")[0]
+                ] = config_context
+            primary_ip = i.get("primary_ip")
+            if primary_ip:
+                hostvars["_meta"]["hostvars"][host][
+                    "ansible_host"
+                ] = primary_ip["address"].split("/")[0]
+                hostvars["_meta"]["hostvars"][host]["primary_ip"] = primary_ip[
+                    "address"
+                ].split("/")[0]
+            processed_hosts[host] = host
 
     inventory.update(sites)
     inventory.update(racks)
     inventory.update(platforms)
+    inventory.update(clusters)
     inventory.update(tenants)
     inventory.update(tags)
     inventory.update(hostvars)
@@ -260,4 +220,67 @@ if __name__ == "__main__":
         help="List of custom filters ex: role=switch,model=blah",
     )
     args = parser.parse_args()
+
+    # Netbox URL
+    if os.environ.get("NETBOX_URL") is not None:
+        URL = os.environ.get("NETBOX_URL")
+    else:
+        if args.URL is not None:
+            URL = args.URL
+        else:
+            print(
+                "ERROR: neither NETBOX_URL or -u option are set. Provide one "
+                "to continue..."
+            )
+            exit(-1)
+
+    # Netbox API Token
+    if os.environ.get("NETBOX_TOKEN") is not None:
+        TOKEN = os.environ.get("NETBOX_TOKEN")
+    else:
+        if args.TOKEN is not None:
+            TOKEN = args.TOKEN
+        else:
+            print(
+                "ERROR: neither NETBOX_TOKEN or -t option are set. Provide one "
+                "to continue..."
+            )
+            exit(-1)
+
+    # AWX Filter Tags
+    # Example: ["switch", "manager"]
+    if os.environ.get("NETBOX_FILTER_TAGS") is not None:
+        FILTER_TAGS = os.environ.get("NETBOX_FILTER_TAGS").split(",")
+    else:
+        if args.TAGS is not None:
+            FILTER_TAGS = args.TAGS.split(",")
+        else:
+            FILTER_TAGS = []
+    # Example: ["platform.name=Juniper"]
+    if os.environ.get("NETBOX_FILTER_CUSTOM") is not None:
+        FILTER_CUSTOM = os.environ.get("NETBOX_FILTER_CUSTOM").split(",")
+    else:
+        if args.CUSTOM is not None:
+            FILTER_CUSTOM = args.CUSTOM.split(",")
+        else:
+            FILTER_CUSTOM = []
+
+    # Device
+    if os.environ.get("NETBOX_DEVICE") is not None:
+        NETBOX_DEVICE = bool(os.environ.get("NETBOX_DEVICE"))
+    else:
+        if args.b_device is not None:
+            NETBOX_DEVICE = bool(args.b_device)
+        else:
+            NETBOX_DEVICE = True
+
+    # Virtual
+    if os.environ.get("NETBOX_VIRTUAL") is not None:
+        NETBOX_VIRTUAL = bool(os.environ.get("NETBOX_VIRTUAL"))
+    else:
+        if args.b_virtual is not None:
+            NETBOX_VIRTUAL = bool(args.b_virtual)
+        else:
+            NETBOX_VIRTUAL = True
+
     main(args)
