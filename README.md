@@ -24,6 +24,8 @@ optional arguments:
   -v          Virtual-machine list
   -g TAGS     List of tags ex: switch,managed
   -c CUSTOM   List of custom filters ex: role=switch,model=blah
+  -n DOMAIN   Domain name to append to deivce/virtual object name for ansible_host values ex: example.com
+
 ```
 
 Environment variables supported (used to pass variables to AWX):
@@ -34,6 +36,7 @@ Environment variables supported (used to pass variables to AWX):
 `NETBOX_FILTER_CUSTOM`: Custom list of Netbox attributes to filter  
 `NETBOX_DEVICE`: Match on device objects (Default:`True`)  
 `NETBOX_VIRTUAL`: Virtual-Machine (Default:`False`)  
+`ANSIBLE_HOST_DOMAIN`: Use domain with device/virtual object name
 
 ## Setup
 
@@ -80,6 +83,7 @@ export NETBOX_TOKEN='<token>'
 export NETBOX_FILTER_TAGS='tag1'
 export NETBOX_FILTER_CUSTOM="role=server"
 export NETBOX_VIRTUAL=True
+export ANSIBLE_HOST_DOMAIN=example.com
 ```
 
 Use ansible-inventory to output to a host file in yaml format

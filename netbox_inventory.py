@@ -175,12 +175,20 @@ def main(args):
                 ] = config_context
             primary_ip = i.get("primary_ip")
             if primary_ip:
-                hostvars["_meta"]["hostvars"][host][
-                    "ansible_host"
-                ] = primary_ip["address"].split("/")[0]
-                hostvars["_meta"]["hostvars"][host]["primary_ip"] = primary_ip[
-                    "address"
-                ].split("/")[0]
+                if host and ANSIBLE_HOST_DOMAIN:
+                    hostvars["_meta"]["hostvars"][host][
+                        "ansible_host"
+                    ] = host + "." + ANSIBLE_HOST_DOMAIN
+                    hostvars["_meta"]["hostvars"][host]["primary_ip"] = primary_ip[
+                        "address"
+                    ].split("/")[0]
+                else:
+                    hostvars["_meta"]["hostvars"][host][
+                        "ansible_host"
+                    ] = primary_ip["address"].split("/")[0]
+                    hostvars["_meta"]["hostvars"][host]["primary_ip"] = primary_ip[
+                        "address"
+                    ].split("/")[0]
             processed_hosts[host] = host
 
     inventory.update(sites)
@@ -218,6 +226,12 @@ if __name__ == "__main__":
         type=str,
         dest="CUSTOM",
         help="List of custom filters ex: role=switch,model=blah",
+    )
+    parser.add_argument(
+        "-n",
+        type=str,
+        dest="ANSIBLE_HOST_DOMAIN",
+        help="Domain to add to 'hostname' for ansible_host values",
     )
     args = parser.parse_args()
 
@@ -282,5 +296,15 @@ if __name__ == "__main__":
             NETBOX_VIRTUAL = bool(args.b_virtual)
         else:
             NETBOX_VIRTUAL = True
+    
+    # Domain to add to hostnames for ansible_host values
+    # Example: example.com
+    if os.environ.get("ANSIBLE_HOST_DOMAIN") is not None:
+        ANSIBLE_HOST_DOMAIN = str(os.environ.get("ANSIBLE_HOST_DOMAIN"))
+    else:
+        if args.ANSIBLE_HOST_DOMAIN is not None:
+            ANSIBLE_HOST_DOMAIN = args.ANSIBLE_HOST_DOMAIN
+        else:
+            ANSIBLE_HOST_DOMAIN = ""
 
     main(args)
