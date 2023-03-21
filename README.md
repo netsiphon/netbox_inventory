@@ -24,7 +24,7 @@ optional arguments:
   -v          Virtual-machine list
   -g TAGS     List of tags ex: switch,managed
   -c CUSTOM   List of custom filters ex: role=switch,model=blah
-  -n DOMAIN   Domain name to append to deivce/virtual object name for ansible_host values ex: example.com
+  -n DOMAIN   Domain name to append to device/virtual object name for ansible_host values ex: example.com
 
 ```
 
