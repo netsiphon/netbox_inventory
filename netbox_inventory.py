@@ -118,14 +118,16 @@ def main(args):
 
     # Filter hosts for AWX
     for i in hosts_list:
-        if FILTER_TAGS:
-            if i.get("tags") is None:
-                continue
-            for item in i["tags"]:
-                if item.get("name") in FILTER_TAGS:
-                    devices.append(i)
-        else:
-            devices.append(i)
+        primary_ip = i.get("primary_ip")
+        if primary_ip:
+            if FILTER_TAGS:
+                if i.get("tags") is None:
+                    continue
+                for item in i["tags"]:
+                    if item.get("name") in FILTER_TAGS:
+                        devices.append(i)
+            else:
+                devices.append(i)
 
     # Populate inventory
     for i in devices:
